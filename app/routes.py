@@ -136,23 +136,6 @@ def delete_post(post_id):
 
     return jsonify({'message': 'Post deleted successfully'}), 200
 
-@main.route('/users', methods=['GET'])
-@jwt_required()
-def get_users():
-    user_id = get_jwt_identity()
-    current_user = User.query.get(user_id)
-
-    if not current_user.is_admin:
-        return jsonify({'message': 'Unauthorized - Admin access required'}), 403
-
-    users = User.query.all()
-    return jsonify([{
-        'id': user.id,
-        'email': user.email,
-        'is_admin': user.is_admin,
-        'post_count': len(user.posts)
-    } for user in users]), 200
-
 @main.route('/users/<int:user_id>', methods=['DELETE'])
 @jwt_required()
 def delete_user(user_id):
@@ -260,3 +243,61 @@ def admin_delete_user(user_id):
     db.session.commit()
 
     return jsonify({'message': 'User and their posts deleted successfully'}), 200
+
+@main.route('/users', methods=['GET'])
+@jwt_required()
+def list_all_users():
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    users = User.query.all()
+
+    if current_user.is_admin:
+        return jsonify([{
+            'id': user.id,
+            'email': user.email,
+            'is_admin': user.is_admin,
+            'post_count': len(user.posts)
+        } for user in users]), 200
+    else:
+
+        return jsonify([{
+            'id': user.id,
+            'email': user.email
+        } for user in users]), 200
+
+@main.route('/users/<int:user_id>', methods=['GET'])
+@jwt_required()
+def get_user_by_id(user_id):
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    user = User.query.get_or_404(user_id)
+
+    if current_user.is_admin:
+        return jsonify({
+            'id': user.id,
+            'email': user.email,
+            'is_admin': user.is_admin,
+            'post_count': len(user.posts)
+        }), 200
+    else:
+        return jsonify({
+            'id': user.id,
+            'email': user.email
+        }), 200
+
+
+@main.route('/posts/<int:post_id>', methods=['GET'])
+@jwt_required()
+def get_post_by_id(post_id):
+    post = Post.query.get_or_404(post_id)
+    current_user_id = get_jwt_identity()
+    current_user = User.query.get(current_user_id)
+    
+    return jsonify({
+        'id': post.id,
+        'content': post.content,
+        'created_at': post.created_at,
+        'author_email': post.author.email,
+        'user_id': post.user_id,
+        'is_owner': str(post.user_id) == str(current_user_id) or current_user.is_admin
+    }), 200
