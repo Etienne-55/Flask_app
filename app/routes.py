@@ -173,3 +173,90 @@ def delete_user(user_id):
     db.session.commit()
 
     return jsonify({'message': 'User and their posts deleted successfully'}), 200
+
+@main.route('/user/profile', methods=['PUT'])
+@jwt_required()
+def update_profile():
+    user_id = get_jwt_identity()
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'message': 'No data provided'}), 400
+
+    if 'email' in data:
+        if User.query.filter_by(email=data['email']).first() and data['email'] != user.email:
+            return jsonify({'message': 'Email already exists'}), 400
+        user.email = data['email']
+
+    if 'password' in data:
+        user.password = generate_password_hash(data['password'])
+
+    db.session.commit()
+    return jsonify({'message': 'Profile updated successfully'}), 200
+
+@main.route('/user/delete', methods=['DELETE'])
+@jwt_required()
+def delete_own_account():
+    user_id = get_jwt_identity()
+    user = User.query.get_or_404(user_id)
+
+    if user.is_admin:
+        return jsonify({'message': 'Admin account cannot be deleted'}), 403
+
+    Post.query.filter_by(user_id=user_id).delete()
+    
+    db.session.delete(user)
+    db.session.commit()
+
+    return jsonify({'message': 'Account deleted successfully'}), 200
+
+@main.route('/admin/users/<int:user_id>', methods=['PUT'])
+@jwt_required()
+def admin_update_user(user_id):
+    admin_id = get_jwt_identity()
+    admin_user = User.query.get(admin_id)
+
+    if not admin_user.is_admin:
+        return jsonify({'message': 'Unauthorized - Admin access required'}), 403
+
+    user_to_update = User.query.get_or_404(user_id)
+    data = request.get_json()
+
+    if not data:
+        return jsonify({'message': 'No data provided'}), 400
+
+    if user_to_update.is_admin and user_to_update.id != admin_id:
+        return jsonify({'message': 'Cannot modify another admin\'s profile'}), 403
+
+    if 'email' in data:
+        if User.query.filter_by(email=data['email']).first() and data['email'] != user_to_update.email:
+            return jsonify({'message': 'Email already exists'}), 400
+        user_to_update.email = data['email']
+
+    if 'password' in data:
+        user_to_update.password = generate_password_hash(data['password'])
+
+    db.session.commit()
+    return jsonify({'message': 'User profile updated successfully'}), 200
+
+@main.route('/admin/users/<int:user_id>', methods=['DELETE'])
+@jwt_required()
+def admin_delete_user(user_id):
+    admin_id = get_jwt_identity()
+    admin_user = User.query.get(admin_id)
+
+    if not admin_user.is_admin:
+        return jsonify({'message': 'Unauthorized - Admin access required'}), 403
+
+    user_to_delete = User.query.get_or_404(user_id)
+
+    if user_to_delete.is_admin:
+        return jsonify({'message': 'Cannot delete admin accounts'}), 403
+
+    Post.query.filter_by(user_id=user_id).delete()
+    
+    db.session.delete(user_to_delete)
+    db.session.commit()
+
+    return jsonify({'message': 'User and their posts deleted successfully'}), 200
